@@ -33,7 +33,7 @@ Oracleでインスタンスを作るとき「拡張オプションの表示 → 
 export DOMAIN=myscout.duckdns.org
 export TOKEN=好きなパスワード（英数字20文字以上）
 export DUCKDNS_TOKEN=DuckDNSのtoken
-curl -fsSL https://raw.githubusercontent.com/s14-114ws-cloud/meme-coin/main/deploy/cloud-init.sh | bash
+curl -fsSL https://raw.githubusercontent.com/s14-114ws-cloud/Meme-coin/main/deploy/cloud-init.sh | bash
 ```
 作成後10分ほどで `https://myscout.duckdns.org` が開けるようになります。進み具合はサーバーの `/var/log/memescout-setup.log` に記録されます。
 毎日4時（日本時間）にGitHubの最新版へ自動更新されます。

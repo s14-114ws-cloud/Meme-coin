@@ -4,7 +4,7 @@
 set -uo pipefail
 exec > >(tee -a /var/log/memescout-setup.log) 2>&1
 echo "=== Meme Scout setup start $(date) ==="
-REPO="https://github.com/s14-114ws-cloud/meme-coin.git"
+REPO="https://github.com/s14-114ws-cloud/Meme-coin.git"
 U=ubuntu
 HOME_DIR=/home/$U
 APP=$HOME_DIR/memescout
