@@ -164,10 +164,13 @@ async function openToken(mint) {
       ${(e.reasons?.good || []).map((x) => `<li class="g">✓ ${esc(x)}</li>`).join('')}
       ${(e.reasons?.bad || []).filter((x) => !x.startsWith('✗')).map((x) => `<li class="n">${esc(x)}</li>`).join('')}</ul></div>
     <h2>主な指標</h2><div class="card"><table>
-      ${[['上位10ホルダー', f.top10?.toFixed(1) + '%'], ['最大ホルダー', f.single?.toFixed(1) + '%'], ['つながったウォレット群', f.cluster_pct?.toFixed(1) + '%'], ['dev保有', f.dev_pct?.toFixed(1) + '%'],
+      ${[['上位10ホルダー', f.top10?.toFixed(1) + '%'], ['バブルマップ（自前）', f.has_own ? `上位${e.reasons?.ownAnalyzed}人中 最大グループ ${f.own_cluster_pct?.toFixed(1)}%` : '未分析（足切りで除外 or 取得失敗）'], ['新しいウォレットの保有', f.has_own ? f.fresh_pct?.toFixed(1) + '%' : '–'], ['最大ホルダー', f.single?.toFixed(1) + '%'], ['つながったウォレット群', f.cluster_pct?.toFixed(1) + '%'], ['dev保有', f.dev_pct?.toFixed(1) + '%'],
         ['発行3秒以内の買い', f.sniper_pct?.toFixed(1) + '%'], ['初期勢の含み益玉', f.overhang_pct?.toFixed(1) + '%'], ['5分の買い比率', pc(f.buy_ratio_m5)], ['5分/1時間の値動き', `${sgn(f.pc_m5)} / ${sgn(f.pc_h1)}`],
         ['高値から', sgn(f.from_high)], ['30分VWAP比', sgn(f.above_vwap)], ['売却インパクト', pc(f.sell_impact, 1)], ['スマート/KOL保有', `${f.smart_holding} / ${f.kol_holding}（売却済KOL ${f.kol_sold}）`], ['言及数', f.mentions]]
         .map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
+    ${(e.reasons?.clusters || []).length ? `<h2>つながっているウォレット群</h2>${e.reasons.clusters.map((c, i) => `<div class="card"><div class="row"><b>グループ${i + 1}</b><span class="badge b-reject">${c.n}個・${c.pct}%</span></div>
+      <div class="mut">共通の資金元: ${c.funder ? `<a href="https://solscan.io/account/${c.funder}" target="_blank" rel="noopener" style="color:var(--ac)">${esc(c.funder.slice(0, 6))}…</a>` : '直接送金'}</div>
+      <div class="mut" style="word-break:break-all">${c.members.map((m) => `<a href="https://solscan.io/account/${m}" target="_blank" rel="noopener" style="color:var(--mut)">${esc(m.slice(0, 5))}…</a>`).join(' ')}</div></div>`).join('')}` : ''}
     ${d.wallets.length ? `<h2>登録ウォレットの売買</h2><div class="card"><table><tr><th>ウォレット</th><th>買い</th><th>売り</th></tr>${d.wallets.map((w) => `<tr><td>${esc(w.label || w.address.slice(0, 6))} <span class="mut">${w.kind}</span></td><td>${(+w.buy_sol).toFixed(2)}</td><td>${(+w.sell_sol).toFixed(2)}</td></tr>`).join('')}</table></div>` : ''}
     ${d.mentions.length ? `<h2>コミュニティでの言及</h2>${d.mentions.map((x) => `<div class="card"><div class="mut">${esc(x.source)} · ${ago(x.ts)}前</div><div style="font-size:13px">${esc(x.text)}</div></div>`).join('')}` : ''}
     ${d.papers.length ? `<h2>答え合わせ（ペーパートレード）</h2><div class="card"><table><tr><th>開始</th><th>最高</th><th>最低</th><th>結果</th></tr>${d.papers.map((p) => `<tr><td>${ago(p.entry_ts)}前${p.notified ? ' 🔔' : ''}</td><td>×${(+p.max_mult).toFixed(2)}</td><td>×${(+p.min_mult).toFixed(2)}</td><td>${p.outcome || '追跡中'}</td></tr>`).join('')}</table></div>` : ''}`;
@@ -195,7 +198,7 @@ function renderCheck() {
 
 // ---- 成績 ----
 const grp = (g, label) => `<tr><td>${label}</td><td>${g.n}</td><td>${pc(g.winRate)}</td><td class="${g.avgRet >= 0 ? 'pos' : 'neg'}">${sgn(g.avgRet)}</td><td>${g.rugs}</td></tr>`;
-const FAILJP = { top10: '上位10集中', single: '単独ホルダー', cluster: 'クラスタ', dev: 'dev保有', sniper: 'スナイパー', serial_dev: '量産dev', liq: '流動性不足', mcap_low: '時価総額小', mcap_high: '時価総額大', old: '古い', no_sell: '売却不可', sell_impact: '売却インパクト', mint_auth: 'Mint権限', freeze_auth: 'Freeze権限', danger_ext: '危険拡張', rugged: 'ラグ済', lp_unlocked: 'LP未ロック', no_pair: 'ペアなし' };
+const FAILJP = { top10: '上位10集中', single: '単独ホルダー', cluster: 'クラスタ(つながり)', dev: 'dev保有', sniper: 'スナイパー', serial_dev: '量産dev', liq: '流動性不足', mcap_low: '時価総額小', mcap_high: '時価総額大', old: '古い', no_sell: '売却不可', sell_impact: '売却インパクト', mint_auth: 'Mint権限', freeze_auth: 'Freeze権限', danger_ext: '危険拡張', rugged: 'ラグ済', lp_unlocked: 'LP未ロック', no_pair: 'ペアなし' };
 async function renderStats() {
   const s = await api('/api/stats');
   const P = s.perf, M = s.model || {}, st = s.status || {};
@@ -235,7 +238,7 @@ async function renderWallets() {
 const SETJP = { tp: ['利確幅', '1.0 = +100%（2倍）'], sl: ['損切り幅', '0.4 = -40%'], cost: ['往復コスト', 'Bot手数料+DEX手数料+滑り。0.06 = 6%'], minEv: ['通知に必要な期待値', '0.05 = +5%'],
   positionSol: ['1回の購入額(SOL)', '売却インパクトの計算に使用'], minLiqUsd: ['最低流動性($)'], minMcapUsd: ['最低時価総額($)'], maxMcapUsd: ['最高時価総額($)'], maxAgeH: ['ローンチからの最大時間(h)'],
   maxTop10: ['上位10ホルダー上限(%)'], maxSingle: ['単独ホルダー上限(%)'], maxCluster: ['クラスタ上限(%)'], maxDev: ['dev保有上限(%)'], maxSniper: ['発行3秒以内の買い上限(%)'], maxSerialDev: ['量産devの判定(個)'],
-  maxOverextM5: ['5分上昇の上限(%)', 'これ以上は押し目待ち'], maxAboveVwap: ['30分VWAP乖離上限', '0.5 = +50%'], maxSellImpact: ['売却インパクト上限', '0.15 = 15%'], watchHours: ['監視を続ける時間(h)'],
+  maxOverextM5: ['5分上昇の上限(%)', 'これ以上は押し目待ち'], maxAboveVwap: ['30分VWAP乖離上限', '0.5 = +50%'], maxSellImpact: ['売却インパクト上限', '0.15 = 15%'], maxFresh: ['新しいウォレット保有の警告(%)', '作成3日以内のウォレット'], watchHours: ['監視を続ける時間(h)'],
   caveChannels: ['監視するTelegram公開チャンネル', 'カンマ区切り（例: CAVE_JPN）'], quietStart: ['通知しない開始時刻(JST)', '-1で無効'], quietEnd: ['通知しない終了時刻(JST)'] };
 async function renderSettings() {
   const { settings: S } = await api('/api/settings');

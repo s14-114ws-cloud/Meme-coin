@@ -29,6 +29,8 @@ export const ENV = {
   TELEGRAM_CHAT_ID: e.TELEGRAM_CHAT_ID || '',
   SOLANATRACKER_API_KEY: e.SOLANATRACKER_API_KEY || '',
   BUBBLEMAPS_API_KEY: e.BUBBLEMAPS_API_KEY || '',
+  RPC_URL: e.RPC_URL || (e.HELIUS_API_KEY ? `https://mainnet.helius-rpc.com/?api-key=${e.HELIUS_API_KEY}` : 'https://api.mainnet-beta.solana.com'),
+  OWN_CLUSTER: (e.OWN_CLUSTER || '1') === '1', // 自前バブルマップ
   BUBBLEMAPS_KEY_HEADER: e.BUBBLEMAPS_KEY_HEADER || 'x-api-key',
   TRACK_NEW_TOKENS: (e.TRACK_NEW_TOKENS || '1') === '1',
   MAX_TOKEN_SUBS: +(e.MAX_TOKEN_SUBS || 600),
@@ -53,7 +55,8 @@ export const DEFAULT_SETTINGS = {
   maxSerialDev: 30, // 同じdevが作った（卒業できなかった）トークン数
   maxOverextM5: 60, // 5分で+60%以上は「飛びつき」として押し目待ち
   maxAboveVwap: 0.5, // 30分VWAPより50%以上上なら押し目待ち
-  maxSellImpact: 0.15, // 売却時の価格インパクト上限
+  maxSellImpact: 0.15,
+  maxFresh: 30, // 作成3日以内の新しいウォレットが持つ供給%（これ以上は警告） // 売却時の価格インパクト上限
   watchHours: 6, // 監視中トークンを再評価し続ける時間
   positionSol: 0.5, // 想定の1回の購入額（SOL）
   caveChannels: 'CAVE_JPN', // 監視する公開Telegramチャンネル（カンマ区切り）

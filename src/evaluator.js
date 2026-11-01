@@ -3,6 +3,7 @@ import { db, getSettings } from './db.js';
 import { ENV } from './config.js';
 import { dexPairs, rugcheck, sellQuote, bubblemaps, summarizeRugcheck } from './sources/market.js';
 import { mentionStats } from './sources/telegram.js';
+import { holderClusters } from './sources/cluster.js';
 import { regime } from './sources/pumpportal.js';
 import { flowStats, overhang, trackedInvolvement } from './live.js';
 import { computeFeatures, runFilters, decide, breakevenProb } from './score.js';
@@ -70,13 +71,18 @@ export async function evaluateOne(mint, pair, { manual = false, model = loadMode
     flow: flowStats(mint), over: overhang(mint, curMcSol), inv: trackedInvolvement(mint),
     ment: mentionStats(mint), dev, regime: regime(), highMcap: Math.max(num(highMc.get(mint)?.m), mcap),
   };
-  const f = computeFeatures(ctx);
-  const filt = runFilters(ctx, f, S);
+  let f = computeFeatures(ctx);
+  let filt = runFilters(ctx, f, S);
+  // 自前バブルマップ: 他の足切りを通過したものだけ（RPCの節約）
+  if (filt.pass && (fetchers.clusters || (ENV.OWN_CLUSTER && !ENV.OFFLINE))) {
+    ctx.own = await (fetchers.clusters || holderClusters)(mint);
+    if (ctx.own) { f = computeFeatures(ctx); filt = runFilters(ctx, f, S); }
+  }
   const pr = predict(f, model);
   const d = decide(ctx, f, filt, pr.p, S);
   const ev = d.ev ?? null;
   const evalId = insEval.run(mint, t, priceUsd, mcap, num(pair?.liquidity?.usd), JSON.stringify(f), JSON.stringify(filt),
-    pr.pRule, pr.p, ev, d.decision, JSON.stringify({ good: d.good, bad: d.reasons, smartNames: ctx.inv.names })).lastInsertRowid;
+    pr.pRule, pr.p, ev, d.decision, JSON.stringify({ good: d.good, bad: d.reasons, smartNames: ctx.inv.names, clusters: ctx.own?.clusters || null, ownAnalyzed: ctx.own?.analyzed ?? null })).lastInsertRowid;
   const soft = !filt.pass && filt.fails.every((x) => SOFT_FAILS.has(x[0]));
   setEval.run(t, d.decision === 'reject' && soft ? 'reject_soft' : d.decision, mint);
 

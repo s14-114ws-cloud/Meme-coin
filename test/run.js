@@ -33,6 +33,7 @@ const { train, predict } = await import('../src/learn.js');
 const { encryptPayload, vapidKeys } = await import('../src/push.js');
 const { computeFeatures, FEATURE_KEYS, breakevenProb, expectedValue } = await import('../src/score.js');
 const { updateWalletStats, importWallets } = await import('../src/wallets.js');
+const { analyzeHolders, fundingSource } = await import('../src/sources/cluster.js');
 
 let passed = 0;
 const t = async (name, fn) => { await fn(); passed++; console.log('✓', name); };
@@ -105,6 +106,60 @@ await t('評価: 安全なトークンは通過、Mint権限ありは除外', as
   const r3 = await evaluateOne(hot, mkPair(hot, { pc5: 120 }), { fetchers, model: null });
   assert.ok(r3.decision !== 'notify' && r3.bad.some((x) => x.includes('押し目')), '急騰中は押し目待ち');
   assert.equal(db.prepare('SELECT COUNT(*) n FROM paper').get().n, 3, '価格のある評価はペーパー記録');
+});
+
+
+await t('自前バブルマップ: 同じ資金元のウォレット群を検出、プールは除外', async () => {
+  const mint = addr(), pool = addr(), poolProg = addr(), boss = addr(), cex = addr();
+  const sy = [addr(), addr(), addr()], indep = [addr(), addr()], old = addr();
+  const T = Date.now();
+  const holders = [[pool, 300e6], [sy[0], 40e6], [sy[1], 35e6], [sy[2], 30e6], [indep[0], 20e6], [indep[1], 15e6], [old, 10e6]];
+  const tokAcc = holders.map(() => addr());
+  const first = {
+    [sy[0]]: { funder: boss, ts: T - 2 * 3600e3 }, [sy[1]]: { funder: boss, ts: T - 1.5 * 3600e3 }, [sy[2]]: { funder: boss, ts: T - 1 * 3600e3 },
+    [indep[0]]: { funder: cex, ts: T - 300 * 24 * 3600e3 }, [indep[1]]: { funder: cex, ts: T - 100 * 24 * 3600e3 },
+  };
+  const sigOf = (w) => 'sig_' + w;
+  const call = async (method, params) => {
+    if (method === 'getTokenLargestAccounts') return { value: holders.map(([, amt], i) => ({ address: tokAcc[i], uiAmount: amt })) };
+    if (method === 'getTokenSupply') return { value: { uiAmount: 1e9 } };
+    if (method === 'getMultipleAccounts') {
+      const keys = params[0];
+      if (params[1].encoding === 'jsonParsed') return { value: keys.map((k) => ({ data: { parsed: { info: { owner: holders[tokAcc.indexOf(k)][0] } } } })) };
+      return { value: keys.map((k) => (k === pool ? { owner: poolProg } : { owner: '11111111111111111111111111111111' })) };
+    }
+    if (method === 'getSignaturesForAddress') {
+      const w = params[0];
+      if (w === old) return Array.from({ length: 1000 }, (_, i) => ({ signature: 'o' + i, blockTime: 1 }));
+      return [{ signature: 'x' }, { signature: sigOf(w), blockTime: Math.floor(first[w].ts / 1000) }];
+    }
+    if (method === 'getTransaction') {
+      const w = params[0].slice(4);
+      return { blockTime: Math.floor(first[w].ts / 1000), transaction: { message: { accountKeys: [{ pubkey: first[w].funder }], instructions: [
+        { program: 'system', parsed: { type: 'transfer', info: { source: first[w].funder, destination: w, lamports: 1e8 } } }] } }, meta: { innerInstructions: [] } };
+    }
+    throw new Error('unexpected ' + method);
+  };
+  const r = await analyzeHolders(mint, { call, t: T });
+  assert.equal(r.analyzed, 6, 'プールを除いた6人');
+  assert.equal(r.clusters.length, 1, 'CEXから遠い時期に送られた2人はつながらない');
+  assert.equal(r.clusters[0].n, 3);
+  assert.ok(Math.abs(r.maxClusterPct - 10.5) < 1e-9);
+  assert.ok(Math.abs(r.freshPct - 10.5) < 1e-9);
+  const f = await fundingSource(old, call);
+  assert.equal(f.old, true);
+
+  // 評価に組み込まれ、クラスタが大きいと除外される
+  const m2 = addr();
+  const big = { maxClusterPct: 22, clusters: [{ pct: 22, n: 4, funder: boss, members: sy }], freshPct: 30, analyzed: 12 };
+  const r2 = await evaluateOne(m2, mkPair(m2), { fetchers: { ...fetchers, clusters: async () => big }, model: null });
+  assert.equal(r2.decision, 'reject');
+  assert.ok(r2.bad.some((x) => x.includes('つながったウォレット群')));
+  const m3 = addr();
+  const clean = { maxClusterPct: 0, clusters: [], freshPct: 5, analyzed: 15 };
+  const r3 = await evaluateOne(m3, mkPair(m3), { fetchers: { ...fetchers, clusters: async () => clean }, model: null });
+  assert.notEqual(r3.decision, 'reject');
+  assert.ok(r3.good.some((x) => x.includes('つながりなし')));
 });
 
 await t('期待値と損益分岐', () => {

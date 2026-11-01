@@ -32,7 +32,10 @@ export function computeFeatures(ctx) {
     top10: num(rc.top10),
     single: num(rc.single),
     insider_pct: num(rc.insiderPct),
-    cluster_pct: Math.max(num(ctx.bm?.maxClusterPct), num(rc.insiderPct)),
+    cluster_pct: Math.max(num(ctx.bm?.maxClusterPct), num(rc.insiderPct), num(ctx.own?.maxClusterPct)),
+    own_cluster_pct: num(ctx.own?.maxClusterPct),
+    fresh_pct: num(ctx.own?.freshPct),
+    has_own: ctx.own ? 1 : 0,
     insider_networks: num(rc.insiderNetworks),
     dev_pct: num(rc.creatorPct ?? ctx.tok?.dev_pct),
     sniper_pct: num(ctx.tok?.sniper_pct),
@@ -105,6 +108,7 @@ export function runFilters(ctx, f, S) {
   }
   if (ctx.jup && ctx.jup.ok === false) fails.push(['no_sell', '売却ルートなし（ハニーポットの疑い）']);
   if (ctx.jup && ctx.jup.impact != null && ctx.jup.impact > S.maxSellImpact) fails.push(['sell_impact', `売却インパクト ${(ctx.jup.impact * 100).toFixed(0)}%`]);
+  if (ctx.own && f.fresh_pct > S.maxFresh) warns.push(['fresh', `作成3日以内の新しいウォレットが${f.fresh_pct.toFixed(0)}%保有`]);
   if (f.kol_sold >= 2 && f.kol_holding === 0) warns.push(['kol_exit', 'KOLが既に売り抜け']);
   if (f.vol_h1_liq > 40) warns.push(['wash', '出来高/流動性が異常（自作自演の疑い）']);
   return { pass: fails.length === 0, fails, warns };
@@ -126,6 +130,8 @@ export function ruleLogit(f) {
   z -= 0.06 * f.overhang_pct;
   z -= 0.04 * f.sniper_held_pct;
   z -= 0.02 * Math.max(0, f.top10 - 15);
+  z -= 0.03 * Math.max(0, f.cluster_pct - 5);
+  z -= 0.015 * Math.max(0, f.fresh_pct - 15);
   z += 0.15 * (f.has_twitter + f.has_tg + f.has_web > 1 ? 1 : 0);
   z -= f.log_mcap > 6.5 ? 0.4 : 0;
   z -= 0.3 * Math.min(f.dev_prev_tokens, 2);
@@ -151,12 +157,14 @@ export function decide(ctx, f, filt, p, S) {
   if (f.kol_holding) good.push(`KOL${f.kol_holding}件が保有中`);
   if (f.mentions) good.push(`コミュニティ言及${f.mentions}件`);
   if (f.liq_to_mcap >= 0.15) good.push('時価総額に対して流動性が厚い');
+  if (ctx.own && ctx.own.analyzed >= 5 && f.own_cluster_pct < 3) good.push(`バブルマップ: 上位${ctx.own.analyzed}人につながりなし`);
   if (f.top10 && f.top10 < 15) good.push(`保有が分散（上位10: ${f.top10.toFixed(0)}%）`);
   if (f.buy_ratio_m5 >= 0.6) good.push('直近5分は買い優勢');
   if (f.has_flow && f.uniq_buyers_15m >= 1.5) good.push(`15分で新規買い手 ${Math.round(10 ** f.uniq_buyers_15m - 1)}人`);
   if (f.from_high < -0.3 && f.from_high > -0.6) good.push(`高値から${Math.round(-f.from_high * 100)}%押し`);
   // 注意
   for (const w of filt.warns) reasons.push('⚠ ' + w[1]);
+  if (ctx.own && f.own_cluster_pct >= 3) reasons.push(`⚠ バブルマップ: ${ctx.own.clusters[0].n}つのウォレットがつながり ${f.own_cluster_pct.toFixed(1)}%`);
   if (f.overhang_pct > 10) reasons.push(`⚠ 初期勢の含み益玉 ${f.overhang_pct.toFixed(0)}%（売り圧）`);
   if (f.kol_sold) reasons.push(`⚠ KOL ${f.kol_sold}件が売却済み`);
   // タイミング（飛びつき防止）
