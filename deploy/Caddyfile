@@ -1,0 +1,5 @@
+# あなたのサブドメインに書き換える（例: myscout.duckdns.org）
+YOUR-NAME.duckdns.org {
+	encode gzip
+	reverse_proxy 127.0.0.1:8787
+}

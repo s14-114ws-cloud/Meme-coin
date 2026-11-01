@@ -1,0 +1,15 @@
+[Unit]
+Description=Meme Scout
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/memescout
+ExecStart=/usr/bin/node --no-warnings src/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

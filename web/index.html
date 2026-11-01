@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MemeScout">
+<meta name="theme-color" content="#0b0e14">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<title>Meme Scout</title>
+<style>
+:root{--bg:#0b0e14;--card:#141925;--line:#232b3b;--tx:#e8ecf3;--mut:#8b95a8;--ok:#2fd18b;--ng:#ff5d6c;--wa:#ffb547;--ac:#7c8cff;--r:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif}
+header{position:sticky;top:0;z-index:5;background:rgba(11,14,20,.92);backdrop-filter:blur(10px);padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;flex:1;letter-spacing:.02em}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mut)} .dot.on{background:var(--ok)}
+main{padding:12px 12px calc(env(safe-area-inset-bottom) + 84px)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(15,19,28,.96);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav button{flex:1;background:none;border:0;color:var(--mut);padding:9px 0 8px;font-size:11px;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button b{font-size:19px;font-weight:400} nav button.on{color:var(--tx)}
+.seg{display:flex;background:var(--card);border-radius:10px;padding:3px;margin-bottom:12px}
+.seg button{flex:1;border:0;background:none;color:var(--mut);padding:7px;border-radius:8px;font-size:13px}
+.seg button.on{background:var(--line);color:var(--tx)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px}
+.sym{font-weight:700;font-size:16px}
+.badge{font-size:11px;padding:2px 8px;border-radius:99px;background:var(--line);color:var(--mut);white-space:nowrap}
+.b-notify{background:rgba(47,209,139,.15);color:var(--ok)} .b-watch{background:rgba(255,181,71,.15);color:var(--wa)} .b-reject,.b-reject_soft{background:rgba(255,93,108,.12);color:var(--ng)}
+.big{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.kv div{background:#0f141e;border-radius:8px;padding:6px 8px} .kv small{display:block;color:var(--mut);font-size:10px} .kv span{font-variant-numeric:tabular-nums;font-size:13px}
+ul.r{margin:6px 0 0;padding:0;list-style:none;font-size:13px} ul.r li{padding:1px 0} .g{color:var(--ok)} .n{color:var(--wa)}
+.mut{color:var(--mut);font-size:12px}
+.sp{flex:1}
+button.btn,a.btn{display:inline-block;background:var(--ac);color:#fff;border:0;border-radius:10px;padding:10px 14px;font-size:14px;text-decoration:none;text-align:center}
+button.ghost,a.ghost{background:var(--line);color:var(--tx)}
+.links{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px} .links a,.links button{font-size:12px;padding:6px 10px}
+input,textarea,select{width:100%;background:#0f141e;border:1px solid var(--line);color:var(--tx);border-radius:10px;padding:10px;font-size:16px}
+textarea{min-height:90px}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+table{width:100%;border-collapse:collapse;font-size:13px} td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right} th{color:var(--mut);font-weight:400} td:first-child,th:first-child{text-align:left}
+.modal{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:calc(env(safe-area-inset-top) + 8px) 12px calc(env(safe-area-inset-bottom) + 20px)}
+.hidden{display:none}
+.pos{color:var(--ok)} .neg{color:var(--ng)}
+h2{font-size:15px;margin:16px 4px 8px}
+.note{font-size:12px;color:var(--mut);line-height:1.6}
+</style>
+</head>
+<body>
+<header><span class="dot" id="live"></span><h1>Meme Scout</h1><span class="mut" id="upd"></span></header>
+<main id="main"></main>
+<nav id="nav">
+  <button data-tab="feed" class="on"><b>◎</b>候補</button>
+  <button data-tab="check"><b>⌕</b>チェック</button>
+  <button data-tab="stats"><b>▤</b>成績</button>
+  <button data-tab="wallets"><b>◈</b>ウォレット</button>
+  <button data-tab="settings"><b>⚙</b>設定</button>
+</nav>
+<div class="modal hidden" id="modal"></div>
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+let TOKEN = store.get('token') || '';
+let tab = 'feed', view = 'notify', timer = null;
+const usd = (x) => { x = +x || 0; return x >= 1e6 ? '$' + (x / 1e6).toFixed(2) + 'M' : x >= 1e3 ? '$' + (x / 1e3).toFixed(1) + 'k' : '$' + x.toFixed(0); };
+const pc = (x, d = 0) => x == null ? '–' : (x * 100).toFixed(d) + '%';
+const sgn = (x) => x == null ? '–' : (x >= 0 ? '+' : '') + (x * 100).toFixed(0) + '%';
+const ago = (ts) => { if (!ts) return '–'; const m = (Date.now() - ts) / 60000; return m < 60 ? Math.round(m) + '分' : m < 1440 ? (m / 60).toFixed(1) + '時間' : Math.round(m / 1440) + '日'; };
+const DLABEL = { notify: '通知', watch: '監視中', reject: '除外', reject_soft: '除外(再確認)' };
+
+async function api(path, opt = {}) {
+  const r = await fetch(path, { ...opt, headers: { 'content-type': 'application/json', 'x-token': TOKEN, ...(opt.headers || {}) } });
+  if (r.status === 401) { login(); throw new Error('認証が必要です'); }
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+function login() {
+  $('#main').innerHTML = `<div class="card"><div class="sym">ログイン</div><p class="note">サーバーの .env に設定した ACCESS_TOKEN を入力してください。</p>
+  <input id="tk" type="password" autocomplete="current-password"><p></p><button class="btn" id="go">保存</button></div>`;
+  $('#go').onclick = () => { TOKEN = $('#tk').value.trim(); store.set('token', TOKEN); render(); };
+}
+
+// ---- プッシュ通知 ----
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+const standalone = window.navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+function pushCard() {
+  if (!('serviceWorker' in navigator)) return '';
+  if (isIOS && !standalone) return `<div class="card"><b>📲 iPhoneで通知を受け取るには</b><p class="note">Safariの共有ボタン →「ホーム画面に追加」→ ホーム画面のアイコンから開いて、この画面の「通知をオン」を押してください（iOS 16.4以降）。</p></div>`;
+  if (!('PushManager' in window)) return '';
+  if (Notification.permission === 'granted' && store.get('pushed') === '1') return '';
+  return `<div class="card row"><div class="sp"><b>🔔 通知をオン</b><div class="note">候補が見つかったらこの端末にプッシュします</div></div><button class="btn" id="pushBtn">オン</button></div>`;
+}
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') return alert('通知が許可されませんでした（設定アプリ→通知 から変更できます）');
+    const reg = await navigator.serviceWorker.ready;
+    const { publicKey } = await (await fetch('/api/vapid')).json();
+    const b64 = publicKey.replace(/-/g, '+').replace(/_/g, '/');
+    const key = Uint8Array.from(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)), (c) => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub.toJSON() }) });
+    store.set('pushed', '1');
+    await api('/api/push/test', { method: 'POST' });
+    render();
+  } catch (e) { alert('通知の設定に失敗: ' + e.message); }
+}
+
+// ---- 候補 ----
+function tokenCard(t, compact) {
+  const r = t.reasons || {};
+  const paper = t.paper && t.paper.max ? `<span class="badge">最高 ×${(+t.paper.max).toFixed(2)}${t.paper.outcome ? ' / ' + ({ tp: '利確到達', sl: '損切り', rug: 'ラグ', timeout: '時間切れ' }[t.paper.outcome]) : ''}</span>` : '';
+  return `<div class="card" data-mint="${esc(t.mint)}">
+    <div class="row"><span class="sym">$${esc(t.symbol || '?')}</span><span class="badge b-${t.decision}">${DLABEL[t.decision] || t.decision}</span>${paper}<span class="sp"></span><span class="mut">${ago(t.created_at || t.ts)}前</span></div>
+    <div class="kv"><div><small>2倍先行</small><span>${pc(t.p)}</span></div><div><small>期待値</small><span class="${t.ev >= 0 ? 'pos' : 'neg'}">${sgn(t.ev)}</span></div><div><small>時価総額</small><span>${usd(t.mcap)}</span></div><div><small>流動性</small><span>${usd(t.liq)}</span></div></div>
+    ${compact ? '' : `<ul class="r">${(r.good || []).slice(0, 4).map((x) => `<li class="g">✓ ${esc(x)}</li>`).join('')}${(r.bad || []).slice(0, 4).map((x) => `<li class="n">${esc(x)}</li>`).join('')}</ul>`}
+    <div class="mut" style="margin-top:6px">${esc(t.sources || '')} · 評価 ${ago(t.ts)}前</div></div>`;
+}
+async function renderFeed() {
+  const items = await api('/api/feed?view=' + view);
+  $('#main').innerHTML = pushCard() + `<div class="seg">${[['notify', '通知済み'], ['watch', '監視中'], ['all', 'すべて']].map(([k, l]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${l}</button>`).join('')}</div>` +
+    (items.length ? items.map((t) => tokenCard(t)).join('') : `<div class="card note">まだありません。サーバー起動直後は、卒業トークンやCAVEの投稿が来るまで数分〜数十分かかります。</div>`);
+  document.querySelectorAll('.seg button').forEach((b) => (b.onclick = () => { view = b.dataset.v; render(); }));
+  document.querySelectorAll('[data-mint]').forEach((c) => (c.onclick = () => openToken(c.dataset.mint)));
+  if ($('#pushBtn')) $('#pushBtn').onclick = enablePush;
+}
+
+function spark(evals) {
+  const pts = evals.slice().reverse().filter((e) => e.mcap > 0);
+  if (pts.length < 2) return '';
+  const xs = pts.map((e) => e.ts), ys = pts.map((e) => Math.log10(e.mcap));
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys) || y0 + 1;
+  const W = 320, Hh = 70;
+  const d = pts.map((e, i) => `${i ? 'L' : 'M'}${((xs[i] - x0) / (x1 - x0 || 1)) * W},${Hh - ((ys[i] - y0) / (y1 - y0 || 1)) * (Hh - 6) - 3}`).join('');
+  return `<svg viewBox="0 0 ${W} ${Hh}" width="100%" height="${Hh}" style="margin:6px 0"><path d="${d}" fill="none" stroke="#7c8cff" stroke-width="2"/></svg><div class="mut">時価総額の推移（評価時点ごと） ${usd(pts[0].mcap)} → ${usd(pts.at(-1).mcap)}</div>`;
+}
+async function openToken(mint) {
+  const m = $('#modal');
+  m.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  m.innerHTML = '<p class="mut">読み込み中…</p>';
+  try {
+    const d = await api('/api/token/' + mint);
+    const e = d.evals[0] || {};
+    const f = e.features || {};
+    const fl = e.filters || { fails: [], warns: [] };
+    const links = [['DexScreener', `https://dexscreener.com/solana/${mint}`], ['GMGN', `https://gmgn.ai/sol/token/${mint}`], ['Bubblemaps', `https://app.bubblemaps.io/sol/token/${mint}`],
+      ['RugCheck', `https://rugcheck.xyz/tokens/${mint}`], ['Solscan', `https://solscan.io/token/${mint}`], ['X検索', `https://x.com/search?q=${mint}&f=live`]];
+    m.innerHTML = `<div class="row" style="margin-bottom:8px"><button class="btn ghost" id="close">← 戻る</button><span class="sp"></span><span class="badge b-${e.decision}">${DLABEL[e.decision] || ''}</span></div>
+    <div class="card"><div class="row"><span class="sym">$${esc(d.tok.symbol || '?')}</span><span class="mut">${esc(d.tok.name || '')}</span></div>
+      <div class="mut" style="word-break:break-all">${esc(mint)}</div>
+      <div class="kv"><div><small>2倍先行</small><span>${pc(e.p)}</span></div><div><small>期待値</small><span class="${e.ev >= 0 ? 'pos' : 'neg'}">${sgn(e.ev)}</span></div><div><small>時価総額</small><span>${usd(e.mcap)}</span></div><div><small>流動性</small><span>${usd(e.liq)}</span></div></div>
+      ${spark(d.evals)}
+      <div class="links"><button class="btn" id="copy">CAをコピー</button>${links.map(([l, u]) => `<a class="btn ghost" href="${u}" target="_blank" rel="noopener">${l}</a>`).join('')}</div></div>
+    <h2>判定理由</h2><div class="card"><ul class="r">
+      ${(fl.fails || []).map((x) => `<li class="neg">✗ ${esc(x[1])}</li>`).join('')}
+      ${(e.reasons?.good || []).map((x) => `<li class="g">✓ ${esc(x)}</li>`).join('')}
+      ${(e.reasons?.bad || []).filter((x) => !x.startsWith('✗')).map((x) => `<li class="n">${esc(x)}</li>`).join('')}</ul></div>
+    <h2>主な指標</h2><div class="card"><table>
+      ${[['上位10ホルダー', f.top10?.toFixed(1) + '%'], ['最大ホルダー', f.single?.toFixed(1) + '%'], ['つながったウォレット群', f.cluster_pct?.toFixed(1) + '%'], ['dev保有', f.dev_pct?.toFixed(1) + '%'],
+        ['発行3秒以内の買い', f.sniper_pct?.toFixed(1) + '%'], ['初期勢の含み益玉', f.overhang_pct?.toFixed(1) + '%'], ['5分の買い比率', pc(f.buy_ratio_m5)], ['5分/1時間の値動き', `${sgn(f.pc_m5)} / ${sgn(f.pc_h1)}`],
+        ['高値から', sgn(f.from_high)], ['30分VWAP比', sgn(f.above_vwap)], ['売却インパクト', pc(f.sell_impact, 1)], ['スマート/KOL保有', `${f.smart_holding} / ${f.kol_holding}（売却済KOL ${f.kol_sold}）`], ['言及数', f.mentions]]
+        .map(([k, v]) => `<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')}</table></div>
+    ${d.wallets.length ? `<h2>登録ウォレットの売買</h2><div class="card"><table><tr><th>ウォレット</th><th>買い</th><th>売り</th></tr>${d.wallets.map((w) => `<tr><td>${esc(w.label || w.address.slice(0, 6))} <span class="mut">${w.kind}</span></td><td>${(+w.buy_sol).toFixed(2)}</td><td>${(+w.sell_sol).toFixed(2)}</td></tr>`).join('')}</table></div>` : ''}
+    ${d.mentions.length ? `<h2>コミュニティでの言及</h2>${d.mentions.map((x) => `<div class="card"><div class="mut">${esc(x.source)} · ${ago(x.ts)}前</div><div style="font-size:13px">${esc(x.text)}</div></div>`).join('')}` : ''}
+    ${d.papers.length ? `<h2>答え合わせ（ペーパートレード）</h2><div class="card"><table><tr><th>開始</th><th>最高</th><th>最低</th><th>結果</th></tr>${d.papers.map((p) => `<tr><td>${ago(p.entry_ts)}前${p.notified ? ' 🔔' : ''}</td><td>×${(+p.max_mult).toFixed(2)}</td><td>×${(+p.min_mult).toFixed(2)}</td><td>${p.outcome || '追跡中'}</td></tr>`).join('')}</table></div>` : ''}`;
+    $('#close').onclick = closeModal;
+    $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(mint); $('#copy').textContent = 'コピーしました'; } catch { prompt('CA', mint); } };
+  } catch (err) { m.innerHTML = `<button class="btn ghost" id="close">← 戻る</button><p>${esc(err.message)}</p>`; $('#close').onclick = closeModal; }
+}
+function closeModal() { $('#modal').classList.add('hidden'); document.body.style.overflow = ''; if (location.hash) history.replaceState(null, '', '/'); }
+
+// ---- チェック ----
+function renderCheck() {
+  $('#main').innerHTML = `<div class="card"><b>CA・投稿をそのまま貼り付け</b><p class="note">BB（Discord）などの投稿をコピーして貼るだけでOK。CAを自動で見つけて評価します。</p>
+    <textarea id="ck" placeholder="CAまたは投稿文"></textarea><label>情報源（言及として記録）</label>
+    <select id="src"><option value="">記録しない</option><option value="BB">BB アルトコイン研究所</option><option value="manual">その他</option></select><p></p>
+    <button class="btn" id="run" style="width:100%">評価する</button></div><div id="res"></div>`;
+  $('#run').onclick = async () => {
+    $('#res').innerHTML = '<p class="mut">評価中…（10秒ほど）</p>';
+    try {
+      const r = await api('/api/check', { method: 'POST', body: JSON.stringify({ text: $('#ck').value, source: $('#src').value }) });
+      $('#res').innerHTML = r.map((x) => tokenCard({ ...x, reasons: { good: x.good, bad: x.bad }, ts: Date.now() })).join('') + `<p class="note">損益分岐の確率: ${pc(r[0]?.breakeven)}（利確/損切り/手数料の設定から計算）</p>`;
+      document.querySelectorAll('#res [data-mint]').forEach((c) => (c.onclick = () => openToken(c.dataset.mint)));
+    } catch (e) { $('#res').innerHTML = `<div class="card neg">${esc(e.message)}</div>`; }
+  };
+}
+
+// ---- 成績 ----
+const grp = (g, label) => `<tr><td>${label}</td><td>${g.n}</td><td>${pc(g.winRate)}</td><td class="${g.avgRet >= 0 ? 'pos' : 'neg'}">${sgn(g.avgRet)}</td><td>${g.rugs}</td></tr>`;
+const FAILJP = { top10: '上位10集中', single: '単独ホルダー', cluster: 'クラスタ', dev: 'dev保有', sniper: 'スナイパー', serial_dev: '量産dev', liq: '流動性不足', mcap_low: '時価総額小', mcap_high: '時価総額大', old: '古い', no_sell: '売却不可', sell_impact: '売却インパクト', mint_auth: 'Mint権限', freeze_auth: 'Freeze権限', danger_ext: '危険拡張', rugged: 'ラグ済', lp_unlocked: 'LP未ロック', no_pair: 'ペアなし' };
+async function renderStats() {
+  const s = await api('/api/stats');
+  const P = s.perf, M = s.model || {}, st = s.status || {};
+  $('#main').innerHTML = `<div class="card"><b>直近30日の答え合わせ（手数料込み）</b><p class="note">損益分岐の勝率は ${pc(s.breakeven)}。通知分の平均がプラスになってから実際の資金を入れるのがおすすめです。</p>
+    <table><tr><th></th><th>件数</th><th>勝率</th><th>平均</th><th>ラグ</th></tr>${grp(P.notified, '通知した')}${grp(P.passed, '足切り通過')}${grp(P.rejected, '除外した')}</table>
+    <div class="mut" style="margin-top:6px">追跡中 ${P.open}件</div></div>
+    <h2>学習状況</h2><div class="card"><div>${esc(M.note || '未学習')}</div>
+    ${M.holdout ? `<div class="mut">検証${M.holdout.n}件：モデルAUC ${M.holdout.model.auc.toFixed(2)} / 初期ルール ${M.holdout.rule.auc.toFixed(2)}・反映率 ${pc(M.blend)}</div>` : ''}
+    ${M.top ? `<table style="margin-top:8px"><tr><th>効いている指標</th><th>重み</th></tr>${M.top.map(([k, w]) => `<tr><td>${esc(k)}</td><td class="${w >= 0 ? 'pos' : 'neg'}">${w.toFixed(2)}</td></tr>`).join('')}</table>` : ''}
+    <p></p><button class="btn ghost" id="train">今すぐ学習</button></div>
+    <h2>予測と実際のズレ</h2><div class="card"><table><tr><th>予測帯</th><th>件数</th><th>予測</th><th>実際</th></tr>${s.calibration.map((b) => `<tr><td>${b.range}</td><td>${b.n}</td><td>${pc(b.predicted)}</td><td>${pc(b.actual)}</td></tr>`).join('')}</table></div>
+    <h2>除外条件の見直し</h2><div class="card"><p class="note">除外したのに実は2倍になった割合。高すぎる条件はゆるめる候補です。</p><table><tr><th>条件</th><th>件数</th><th>実は2倍</th><th>暴落/ラグ</th></tr>
+      ${Object.entries(P.audit).sort((a, b) => b[1].n - a[1].n).map(([k, a]) => `<tr><td>${FAILJP[k] || k}</td><td>${a.n}</td><td>${pc(a.wouldWin / a.n)}</td><td>${pc(a.rugs / a.n)}</td></tr>`).join('')}</table></div>
+    <h2>システム</h2><div class="card mut">稼働 ${st.uptimeMin}分 · PumpPortal ${st.pumpportal?.connected ? '接続中' : '切断'}（卒業 ${st.pumpportal?.regime?.migrations1h}/時・新規 ${st.pumpportal?.regime?.creates1h}/時・購読 ${st.pumpportal?.subs?.tokens}）<br>
+      Telegram 最終取得 ${ago(st.telegram?.lastPoll)}前 ${st.telegram?.lastError ? '⚠ ' + esc(st.telegram.lastError) : ''}<br>トークン ${s.counts.tokens} · 評価 ${s.counts.evals} · スマートウォレット ${s.counts.smart}</div>`;
+  $('#train').onclick = async () => { await api('/api/train', { method: 'POST' }); render(); };
+  $('#live').classList.toggle('on', !!st.pumpportal?.connected);
+}
+
+// ---- ウォレット ----
+async function renderWallets() {
+  const ws = await api('/api/wallets');
+  $('#main').innerHTML = `<div class="card"><b>KOL・注目ウォレットを追加</b>
+    <label>アドレス</label><input id="wa"><label>名前</label><input id="wl"><label>種類</label><select id="wk"><option value="kol">KOL</option><option value="manual">その他</option></select><p></p>
+    <button class="btn" id="add">追加</button></div>
+    <div class="card"><b>まとめて登録</b><p class="note">1行に「アドレス 名前」。kolscan等で見つけたウォレットを貼り付け。</p><textarea id="wi"></textarea><p></p>
+    <button class="btn ghost" id="imp">登録</button> <button class="btn ghost" id="st">Solana TrackerからKOL取得</button></div>
+    <h2>登録済み（スマートは自動発掘）</h2>${ws.map((w) => `<div class="card row"><div class="sp"><b>${esc(w.label || w.address.slice(0, 8) + '…')}</b> <span class="badge">${w.kind}</span>
+      <div class="mut">${w.n_tokens ? `${w.n_tokens}銘柄・勝率${pc(w.wins / w.n_tokens)}・損益${(+w.pnl_sol).toFixed(1)} SOL` : '集計待ち'}</div></div><button class="btn ghost" data-del="${w.address}">削除</button></div>`).join('') || '<p class="mut">まだありません</p>'}`;
+  $('#add').onclick = async () => { try { await api('/api/wallets', { method: 'POST', body: JSON.stringify({ address: $('#wa').value.trim(), label: $('#wl').value, kind: $('#wk').value }) }); render(); } catch (e) { alert(e.message); } };
+  $('#imp').onclick = async () => { const r = await api('/api/wallets', { method: 'POST', body: JSON.stringify({ import: $('#wi').value, kind: 'kol' }) }); alert(r.added + '件登録'); render(); };
+  $('#st').onclick = async () => { try { const r = await api('/api/wallets', { method: 'POST', body: JSON.stringify({ solanatracker: true }) }); alert(r.added + '件登録'); render(); } catch (e) { alert(e.message); } };
+  document.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => { if (confirm('削除しますか？')) { await api('/api/wallets?address=' + b.dataset.del, { method: 'DELETE' }); render(); } }));
+}
+
+// ---- 設定 ----
+const SETJP = { tp: ['利確幅', '1.0 = +100%（2倍）'], sl: ['損切り幅', '0.4 = -40%'], cost: ['往復コスト', 'Bot手数料+DEX手数料+滑り。0.06 = 6%'], minEv: ['通知に必要な期待値', '0.05 = +5%'],
+  positionSol: ['1回の購入額(SOL)', '売却インパクトの計算に使用'], minLiqUsd: ['最低流動性($)'], minMcapUsd: ['最低時価総額($)'], maxMcapUsd: ['最高時価総額($)'], maxAgeH: ['ローンチからの最大時間(h)'],
+  maxTop10: ['上位10ホルダー上限(%)'], maxSingle: ['単独ホルダー上限(%)'], maxCluster: ['クラスタ上限(%)'], maxDev: ['dev保有上限(%)'], maxSniper: ['発行3秒以内の買い上限(%)'], maxSerialDev: ['量産devの判定(個)'],
+  maxOverextM5: ['5分上昇の上限(%)', 'これ以上は押し目待ち'], maxAboveVwap: ['30分VWAP乖離上限', '0.5 = +50%'], maxSellImpact: ['売却インパクト上限', '0.15 = 15%'], watchHours: ['監視を続ける時間(h)'],
+  caveChannels: ['監視するTelegram公開チャンネル', 'カンマ区切り（例: CAVE_JPN）'], quietStart: ['通知しない開始時刻(JST)', '-1で無効'], quietEnd: ['通知しない終了時刻(JST)'] };
+async function renderSettings() {
+  const { settings: S } = await api('/api/settings');
+  const be = (S.sl + S.cost) / (S.tp + S.sl);
+  $('#main').innerHTML = `<div class="card"><b>損益分岐の勝率: ${pc(be, 1)}</b><p class="note">（損切り幅＋往復コスト）÷（利確幅＋損切り幅）。利確を小さくするほど必要な勝率が上がります。</p></div>
+    <div class="card">${Object.entries(SETJP).map(([k, [l, h]]) => `<label>${l}${h ? ` <span class="mut">${h}</span>` : ''}</label><input data-k="${k}" value="${esc(S[k])}" ${typeof S[k] === 'number' ? 'inputmode="decimal"' : ''}>`).join('')}
+    <p></p><button class="btn" id="save" style="width:100%">保存</button></div>
+    <div class="card"><button class="btn ghost" id="test">テスト通知を送る</button> <button class="btn ghost" id="logout">ログアウト</button></div>`;
+  $('#save').onclick = async () => { const b = {}; document.querySelectorAll('[data-k]').forEach((i) => (b[i.dataset.k] = i.value)); await api('/api/settings', { method: 'POST', body: JSON.stringify(b) }); alert('保存しました'); render(); };
+  $('#test').onclick = async () => { const r = await api('/api/push/test', { method: 'POST' }); alert(`送信しました（登録端末 ${r.subs}台）`); };
+  $('#logout').onclick = () => { store.set('token', ''); TOKEN = ''; login(); };
+}
+
+async function render() {
+  if (!TOKEN) { try { await api('/api/ping'); } catch { return; } }
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  try {
+    await ({ feed: renderFeed, check: renderCheck, stats: renderStats, wallets: renderWallets, settings: renderSettings }[tab])();
+    $('#upd').textContent = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { if (TOKEN) $('#main').innerHTML = `<div class="card neg">${esc(e.message)}</div>`; }
+}
+document.querySelectorAll('nav button').forEach((b) => (b.onclick = () => { tab = b.dataset.tab; render(); }));
+function openFromHash() { const m = location.hash.match(/t=([1-9A-HJ-NP-Za-km-z]{32,44})/); if (m) openToken(m[1]); }
+window.addEventListener('hashchange', openFromHash);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.open) { history.replaceState(null, '', e.data.open); openFromHash(); } });
+}
+setInterval(() => { if (document.visibilityState === 'visible' && tab !== 'check' && tab !== 'settings' && $('#modal').classList.contains('hidden')) render(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && tab === 'feed') render(); });
+render().then(openFromHash);
+</script>
+</body>
+</html>

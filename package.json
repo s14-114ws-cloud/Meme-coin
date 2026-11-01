@@ -1,0 +1,12 @@
+{
+  "name": "memescout",
+  "version": "0.1.0",
+  "description": "Solana meme coin scout: collect, score, notify, learn (zero dependencies, Node.js 22+)",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node --no-warnings src/index.js",
+    "test": "node --no-warnings test/run.js"
+  }
+}
